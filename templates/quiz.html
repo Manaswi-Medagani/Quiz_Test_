@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ quiz.title }} - Quiz Test Application</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="text-center my-4">
+            <h1>Online Quiz Application</h1>
+            <p class="lead">Test your knowledge with our interactive quizzes</p>
+        </header>
+
+    
+        <div class="row justify-content-center" id="quiz-section">
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h2 id="quiz-title">{{ quiz.title }}</h2>
+                            <div class="timer-container">
+                                <span class="badge bg-primary p-2">Time Left: <span id="timer">15:00</span></span>
+                            </div>
+                        </div>
+                        
+                        <div class="progress mb-4">
+                            <div id="quiz-progress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        
+                        <div id="question-container">
+                        
+                            <div class="text-center p-5">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-3">Loading quiz questions...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-4">
+                            <button id="prev-btn" class="btn btn-secondary">Previous</button>
+                            <button id="next-btn" class="btn btn-primary">Next</button>
+                            <button id="submit-btn" class="btn btn-success" style="display: none;">Submit Quiz</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-5 py-3 bg-light text-center">
+        <div class="container">
+            <p class="mb-0">© 2025 Quiz Test Application. All rights reserved.</p>
+        </div>
+    </footer>
+
+ 
+    <script>
+     
+        const quizData = {{ quiz|tojson|safe }};
+        const sessionId = "{{ session_id }}";
+        
+        document.addEventListener('DOMContentLoaded', function() {
+        
+            const quiz = quizData;
+            
+            let currentQuestionIndex = 0;
+            let userAnswers = {};
+            let timerInterval = null;
+            let timeLeft = quiz.time_limit || 900; 
+            let startTime = Date.now();
+            let endTime = startTime + (timeLeft * 1000);
+
+            
+            if (!sessionId) {
+                alert("Your session is not valid. You will be redirected to the home page.");
+                window.location.href = "/";
+                return;
+            }
+
+      
+            const questionContainer = document.getElementById('question-container');
+            const timerElement = document.getElementById('timer');
+            const quizProgress = document.getElementById('quiz-progress');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const submitBtn = document.getElementById('submit-btn');
+
+        
+            window.addEventListener('beforeunload', function(e) {
+                if (Object.keys(userAnswers).length > 0 && timerInterval !== null) {
+                    e.preventDefault();
+                    e.returnValue = '';
+                    return '';
+                }
+            });
+
+         
+            initQuiz();
+
+            function initQuiz() {
+              
+                showQuestion(0);
+                
+              
+                startTimer();
+                
+       
+                prevBtn.addEventListener('click', showPreviousQuestion);
+                nextBtn.addEventListener('click', showNextQuestion);
+                submitBtn.addEventListener('click', submitQuiz);
+            }
+
+            function showQuestion(index) {
+                const question = quiz.questions[index];
+                quizProgress.style.width = `${(index / quiz.questions.length) * 100}%`;
+                
+                let html = `
+                    <div class="question" data-index="${index}" data-id="${question.id}">
+                        <h4 class="question-text">${index + 1}. ${question.text}</h4>
+                        <div class="options-container">
+                `;
+                
+                question.options.forEach((option, optionIndex) => {
+                    const isSelected = userAnswers[question.id] === optionIndex;
+                    html += `
+                        <div class="option-item ${isSelected ? 'selected-option' : ''}" data-option="${optionIndex}">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="question${question.id}" id="option${question.id}-${optionIndex}" ${isSelected ? 'checked' : ''} value="${optionIndex}">
+                                <label class="form-check-label" for="option${question.id}-${optionIndex}">
+                                    ${option}
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+                
+                questionContainer.innerHTML = html;
+                
+           
+                const optionItems = document.querySelectorAll('.option-item');
+                optionItems.forEach(item => {
+                    item.addEventListener('click', function() {
+                        const questionElement = this.closest('.question');
+                        const questionId = parseInt(questionElement.getAttribute('data-id'));
+                        const optionIndex = parseInt(this.getAttribute('data-option'));
+                        
+               
+                        questionElement.querySelectorAll('.option-item').forEach(el => {
+                            el.classList.remove('selected-option');
+                        });
+                        this.classList.add('selected-option');
+                        
+              
+                        document.getElementById(`option${questionId}-${optionIndex}`).checked = true;
+                        
+                  
+                        userAnswers[questionId] = optionIndex;
+                        
+                        saveAnswer(questionId, optionIndex);
+                    });
+                });
+                
+           
+                prevBtn.style.display = index === 0 ? 'none' : 'block';
+                nextBtn.style.display = index === quiz.questions.length - 1 ? 'none' : 'block';
+                submitBtn.style.display = index === quiz.questions.length - 1 ? 'block' : 'none';
+                
+         
+                currentQuestionIndex = index;
+            }
+
+            function showPreviousQuestion() {
+                if (currentQuestionIndex > 0) {
+                    showQuestion(currentQuestionIndex - 1);
+                }
+            }
+
+            function showNextQuestion() {
+                if (currentQuestionIndex < quiz.questions.length - 1) {
+                    showQuestion(currentQuestionIndex + 1);
+                }
+            }
+
+            function startTimer() {
+                updateTimerDisplay();
+                
+                clearInterval(timerInterval);
+                timerInterval = setInterval(function() {
+                    const currentTime = Date.now();
+                    const remaining = Math.max(0, endTime - currentTime);
+                    timeLeft = Math.ceil(remaining / 1000);
+                    
+                    updateTimerDisplay();
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        submitQuiz();
+                    }
+                }, 1000);
+            }
+
+            function updateTimerDisplay() {
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                timerElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                
+       
+                if (timeLeft < 120) {
+                    timerElement.parentElement.classList.remove('bg-primary');
+                    timerElement.parentElement.classList.add('bg-danger');
+                }
+            }
+
+            function saveAnswer(questionId, answerIndex) {
+                fetch(`/api/quiz/session/${sessionId}/save-answer`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question_id: questionId,
+                        answer_index: answerIndex
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to save answer');
+                    }
+                    return response.json();
+                })
+                .catch(error => {
+                    console.error('Error saving answer:', error);
+       
+                    const notification = document.createElement('div');
+                    notification.className = 'alert alert-warning alert-dismissible fade show position-fixed bottom-0 end-0 m-3';
+                    notification.innerHTML = `
+                        <strong>Warning!</strong> Answer could not be saved.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    `;
+                    document.body.appendChild(notification);
+                    
+               
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 3000);
+                });
+            }
+
+            function submitQuiz() {
+                clearInterval(timerInterval);
+                
+            
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
+                
+                fetch(`/api/quiz/session/${sessionId}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to submit quiz');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    
+                    sessionStorage.setItem('quizResults', JSON.stringify(data));
+                    
+                
+                    window.location.href = `/quiz/results/${sessionId}`;
+                })
+                .catch(error => {
+                    console.error('Error submitting quiz:', error);
+                    alert('Failed to submit quiz. Please try again.');
+                    
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Quiz';
+                    
+                
+                    startTimer();
+                });
+            }
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

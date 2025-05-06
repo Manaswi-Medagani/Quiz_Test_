@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Results - Quiz Test Application</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="text-center my-4">
+            <h1>Online Quiz Application</h1>
+            <p class="lead">Test your knowledge with our interactive quizzes</p>
+        </header>
+
+       
+        <div class="row justify-content-center mt-4" id="results-section">
+            <div class="col-lg-8">
+                <div class="card shadow">
+                    <div class="card-body text-center">
+                        <h2 class="card-title mb-4">Quiz Results</h2>
+                        <div class="result-info mb-4">
+                            <h3>Your Score: <span id="score-value">{{ result.score }}</span>/<span id="total-questions">{{ result.max_score }}</span></h3>
+                            <div class="progress mt-3 mb-4" style="height: 25px;">
+                                <div id="score-progress" class="progress-bar" role="progressbar" style="width: {{ (result.score / result.max_score) * 100 }}%"></div>
+                            </div>
+                            <p class="lead" id="result-message">
+                                {% if result.score == result.max_score %}
+                                    Perfect score! Impressive work!
+                                {% elif result.score >= result.max_score * 0.7 %}
+                                    Great job! You did really well.
+                                {% elif result.score >= result.max_score * 0.5 %}
+                                    Good effort! You've passed.
+                                {% else %}
+                                    Keep practicing. You'll do better next time!
+                                {% endif %}
+                            </p>
+                            <p class="time-taken">Time taken: <span id="time-display"></span></p>
+                        </div>
+                        
+                        <div id="answers-review" class="text-start">
+                          
+                        </div>
+                        
+                        <div class="mt-4">
+                            <a href="/" class="btn btn-primary">Return to Quizzes</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-5 py-3 bg-light text-center">
+        <div class="container">
+            <p class="mb-0">© 2025 Quiz Test Application. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+
+        const resultData = {{ result|tojson|safe }};
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+        
+            const resultsData = JSON.parse(sessionStorage.getItem('quizResults') || '{}');
+            const answersReview = document.getElementById('answers-review');
+            const timeDisplay = document.getElementById('time-display');
+            
+            function formatTime(seconds) {
+                if (isNaN(seconds)) return "unknown time";
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = Math.floor(seconds % 60);
+                return `${minutes} minute${minutes !== 1 ? 's' : ''} and ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''}`;
+            }
+            
+           
+            const timeValue = resultsData.time_taken || resultData.time_taken || 0;
+            timeDisplay.textContent = formatTime(timeValue);
+            
+   
+            if (resultsData.results && resultsData.results.length > 0) {
+                let reviewHtml = '<h4 class="mb-4">Review Your Answers</h4>';
+                
+                resultsData.results.forEach((question, index) => {
+                    const userAnswerText = question.user_answer !== null 
+                        ? question.options[question.user_answer] 
+                        : 'Not answered';
+                    
+                    const correctAnswerText = question.options[question.correct_answer];
+                    const isCorrect = question.is_correct;
+                    
+                    reviewHtml += `
+                        <div class="question-review mb-4 p-3 ${isCorrect ? 'border-success' : 'border-danger'}" style="border-left: 4px solid; border-radius: 4px;">
+                            <p class="fw-bold">${index + 1}. ${question.text}</p>
+                            <div class="options-review">
+                                <p>Your answer: <span class="${isCorrect ? 'text-success' : 'text-danger'} fw-bold">${userAnswerText}</span></p>
+                                <p>Correct answer: <span class="text-success fw-bold">${correctAnswerText}</span></p>
+                            </div>
+                            <div class="explanation bg-light p-2 mt-2 rounded">${question.explanation}</div>
+                        </div>
+                    `;
+                });
+                
+                answersReview.innerHTML = reviewHtml;
+            } else {
+      
+                answersReview.innerHTML = '<p class="text-center">You completed the quiz with a score of ' + 
+                    (resultData.score || 0) + ' out of ' + (resultData.max_score || 0) + '.</p>';
+            }
+            
+            sessionStorage.removeItem('quizResults');
+        });
+    </script>
+</body>
+</html>
